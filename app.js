@@ -15,7 +15,11 @@ function searchViaStreetName(streetName){
   })
   .then(data => {
     console.log(data.streets);
-    data.streets.forEach(item => createList(item));
+    if(data.streets.length!==0){
+      data.streets.forEach(item => createList(item));
+    }else{
+      alert("No street is matched with what you inputed, Please input correct street name!")
+    }
   })
   .catch(error => {
     alert(`Error: "${error}"`);
@@ -26,17 +30,19 @@ function createList(objectArg){
   streets.insertAdjacentHTML('beforeend',`<a href="#" data-street-key="${objectArg.key}" name="${objectArg.name}">${objectArg.name}</a>`)
 }
 
-form.addEventListener('submit',() => {
+form.addEventListener('submit',(event) => {
+  event.preventDefault();
   if(searchInput.value !== ""){
     console.log(searchInput.value);
-    streets.innerHTML="";
+    streets.innerHTML = "";
     searchViaStreetName(searchInput.value);
-  }else{alert("You input is invalid")};
+  } else {
+    alert("You input is blank, please input the street name!")
+  };
 })
 
 // the main table part
-const stopInformation=[];
-const detailInformation=[];
+let detailInformation = [];
 
 const titlebar = document.querySelector("#street-name")
 const tableBody = document.querySelector("tbody")
@@ -51,37 +57,41 @@ function searchViaStreetKey(streetKey){
       Promise.reject(response.statusText);
     }
   })
-  .then(data =>{
+  .then(data => {
+    let stopInformation = [];
     console.log(data);
+    if(data.stops.length === 0){
+      alert("Sorry, No bus stops at this street!");
+    }
     data.stops.forEach(item => stopInformation.push(item.key));
     return stopInformation;
-  }).then(data=>{
+  }).then(data => {
     console.log(data);
     data.forEach(item => {
       addRouteInformation(item);
     });
     return detailInformation;
-  }).then(data => {
-    console.log(data); 
-    createTable(data);
+  })
+  .then(data => {
+      if(data.length === 0){
+      alert("Sorry, No bus available at this street right now!");
+    }
   })
   .catch(error => {
     alert(`Error: "${error}"`);
   })
 }
 
-function createTable(arrayArg){
-  arrayArg.forEach(item=>{
-    let tr = document.createElement("tr");
-    tr.innerHTML = `<td>${item.stop_name}</td>
-    <td>${item.cross_street}</td>
-    <td>${item.direction}</td>
-    <td>${item.route_number}</td>
-    <td>${item.bus_number}</td>
-    <td>${item.arrive_time}</td>
-    </tr>`
-    tableBody.prepend(tr);
-  })
+function createTable(objectArg){
+  let tr = document.createElement("tr");
+  tr.innerHTML = `<td>${objectArg.stop_name}</td>
+  <td>${objectArg.cross_street}</td>
+  <td>${objectArg.direction}</td>
+  <td>${objectArg.route_number}</td>
+  <td>${objectArg.bus_number}</td>
+  <td>${objectArg.arrive_time}</td>
+  </tr>`
+  tableBody.prepend(tr);
 }
 
 function addRouteInformation(stop_key){
@@ -94,28 +104,38 @@ function addRouteInformation(stop_key){
     }
   })
   .then(data =>{
-    if(data['stop-schedule']['route-schedules'].length!==0){
+    if(data['stop-schedule']['route-schedules'].length !== 0){
       console.log(data);
       const k = data['stop-schedule']['stop'].key;
       const n = data['stop-schedule']['stop'].name;
       const c = data['stop-schedule']['stop']["cross-street"].name;
       const d = data['stop-schedule']['stop'].direction;
-
       data['stop-schedule']['route-schedules'].forEach(item => {
         console.log(item.route.key);
         let iterationNumber = 2;
-        if(item['scheduled-stops'].length<2){
+        if(item['scheduled-stops'].length < 2){
           iterationNumber = item['scheduled-stops'].length
         };
-        for(let i=0;i<iterationNumber;i++){
+        for(let i = 0; i < iterationNumber; i++){
           const tableData = {};
           tableData.bus_number = item['scheduled-stops'][i].bus.key;
-          tableData.arrive_time = item['scheduled-stops'][i].times.arrival.scheduled || item['scheduled-stops'][i].times.departure.scheduled;
+          switch(true){
+            case item['scheduled-stops'][i].times.arrival["scheduled"] !== undefined : tableData.arrive_time = item['scheduled-stops'][i].times.arrival["scheduled"]; 
+            break;
+            case item['scheduled-stops'][i].times.departure["scheduled"] !== undefined : tableData.arrive_time = item['scheduled-stops'][i].times.departure["scheduled"]; 
+            break;
+            case item['scheduled-stops'][i].times.arrival.estimated !== undefined : tableData.arrive_time = item['scheduled-stops'][i].times.arrival.estimated; 
+            break;
+            case item['scheduled-stops'][i].times.departure.estimated !== undefined : tableData.arrive_time = item['scheduled-stops'][i].times.departure.estimated; 
+            break;
+            default : tableData.arrive_time = undefined;
+          }
           tableData.stop_key = k;
           tableData.stop_name = n;
           tableData.cross_street = c;
           tableData.direction = d;
           tableData.route_number = item.route.key;
+          createTable(tableData);
           detailInformation.push(tableData);
         }
       });
@@ -126,23 +146,16 @@ function addRouteInformation(stop_key){
   })
 }
 
-
-document.addEventListener('click',(event)=>{
+document.addEventListener('click',(event) => {
+  event.preventDefault();
   if (event.target.nodeName === "A") {
     console.log("yes, you hit it");
     console.log(event.target.getAttribute("data-street-key"));
-    titlebar.innerHTML ="";
-    tableBody.innerHTML="";
-    let k = event.target.getAttribute("data-street-key");
-    searchViaStreetKey(k);
-    
+    detailInformation = [];
+    titlebar.innerHTML = "";
+    tableBody.innerHTML = "";
+    searchViaStreetKey(event.target.getAttribute("data-street-key"));
     let n = event.target.getAttribute("name");
     titlebar.innerHTML = `Displaying results for ${n}`;
-    
-
   }
 })
-
-
-
-
