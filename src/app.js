@@ -15,7 +15,7 @@ function searchViaStreetName(streetName){
   })
   .then(data => {
     console.log(data.streets);
-    if(data.streets.length!==0){
+    if(data.streets.length !== 0){
       data.streets.forEach(item => createList(item));
     }else{
       alert("No street is matched with what you inputed, Please input correct street name!")
@@ -42,10 +42,18 @@ form.addEventListener('submit',(event) => {
 })
 
 // the main table part
-let detailInformation = [];
-
+let now = new Date();
 const titlebar = document.querySelector("#street-name")
 const tableBody = document.querySelector("tbody")
+
+
+function getTomorrow(){
+  let today = new Date();
+  today.setHours(today.getHours()+15);
+  let date = today.toJSON().slice(0,10);
+  let time = today.toJSON().slice(11,19);
+  return date+'T'+time;
+}
 
 
 function searchViaStreetKey(streetKey){
@@ -62,19 +70,19 @@ function searchViaStreetKey(streetKey){
     console.log(data);
     if(data.stops.length === 0){
       alert("Sorry, No bus stops at this street!");
+    }else{
+      data.stops.forEach(item => stopInformation.push(item.key));
+      return stopInformation;
     }
-    data.stops.forEach(item => stopInformation.push(item.key));
-    return stopInformation;
-  }).then(data => {
-    console.log(data);
-    data.forEach(item => {
-      addRouteInformation(item);
-    });
-    return detailInformation;
   })
+  .then(data => new Promise(function(res,rej){
+    console.log(data);
+    res(addRouteInformation(data));
+  }))
   .then(data => {
-      if(data.length === 0){
-      alert("Sorry, No bus available at this street right now!");
+    console.log(data);
+    if(data.length === 0){
+    alert("Sorry, No bus available at this street right now!");
     }
   })
   .catch(error => {
@@ -88,62 +96,58 @@ function createTable(objectArg){
   <td>${objectArg.cross_street}</td>
   <td>${objectArg.direction}</td>
   <td>${objectArg.route_number}</td>
-  <td>${objectArg.bus_number}</td>
+
   <td>${objectArg.arrive_time}</td>
   </tr>`
   tableBody.prepend(tr);
 }
 
-function addRouteInformation(stop_key){
-  fetch(`https://api.winnipegtransit.com/v3/stops/${stop_key}/schedule.json?api-key=oavqfxDk4stbDI8v0v5f`)
-  .then(response => {
-    if (response.status == 200) {
-      return response.json();
-    } else {
-      Promise.reject(response.statusText);
-    }
-  })
-  .then(data =>{
-    if(data['stop-schedule']['route-schedules'].length !== 0){
-      console.log(data);
-      const k = data['stop-schedule']['stop'].key;
-      const n = data['stop-schedule']['stop'].name;
-      const c = data['stop-schedule']['stop']["cross-street"].name;
-      const d = data['stop-schedule']['stop'].direction;
-      data['stop-schedule']['route-schedules'].forEach(item => {
-        console.log(item.route.key);
-        let iterationNumber = 2;
-        if(item['scheduled-stops'].length < 2){
-          iterationNumber = item['scheduled-stops'].length
-        };
-        for(let i = 0; i < iterationNumber; i++){
-          const tableData = {};
-          tableData.bus_number = item['scheduled-stops'][i].bus.key;
-          switch(true){
-            case item['scheduled-stops'][i].times.arrival["scheduled"] !== undefined : tableData.arrive_time = item['scheduled-stops'][i].times.arrival["scheduled"]; 
-            break;
-            case item['scheduled-stops'][i].times.departure["scheduled"] !== undefined : tableData.arrive_time = item['scheduled-stops'][i].times.departure["scheduled"]; 
-            break;
-            case item['scheduled-stops'][i].times.arrival.estimated !== undefined : tableData.arrive_time = item['scheduled-stops'][i].times.arrival.estimated; 
-            break;
-            case item['scheduled-stops'][i].times.departure.estimated !== undefined : tableData.arrive_time = item['scheduled-stops'][i].times.departure.estimated; 
-            break;
-            default : tableData.arrive_time = undefined;
+function addRouteInformation(arrayArg){
+  let detailInformation = [];
+  arrayArg.forEach(item => {
+    fetch(`https://api.winnipegtransit.com/v3/stops/${item}/schedule.json?api-key=oavqfxDk4stbDI8v0v5f&end=${getTomorrow()}&max-results-per-route=2`)
+    .then(response => {
+      if (response.status == 200) {
+        return response.json();
+      } else {
+        Promise.reject(response.statusText);
+      }
+    })
+    .then(data => {
+      if(data['stop-schedule']['route-schedules'].length !== 0){
+        console.log(data);
+        const k = data['stop-schedule']['stop'].key;
+        const n = data['stop-schedule']['stop'].name;
+        const c = data['stop-schedule']['stop']["cross-street"].name;
+        const d = data['stop-schedule']['stop'].direction;
+        data['stop-schedule']['route-schedules'].forEach(item => {
+          console.log(item.route.key);
+          let iterationNumber = 2;
+          if(item['scheduled-stops'].length < 2){
+            iterationNumber = item['scheduled-stops'].length
+          };
+          for(let i = 0; i < iterationNumber; i++){
+            const tableData = {};
+            tableData.arrive_time = item['scheduled-stops'][i].times.arrival["scheduled"];
+            tableData.stop_key = k;
+            tableData.stop_name = n;
+            tableData.cross_street = c;
+            tableData.direction = d;
+            tableData.route_number = item.route.key;
+            createTable(tableData);
+            console.log(tableData);
+            detailInformation.push(tableData);
           }
-          tableData.stop_key = k;
-          tableData.stop_name = n;
-          tableData.cross_street = c;
-          tableData.direction = d;
-          tableData.route_number = item.route.key;
-          createTable(tableData);
-          detailInformation.push(tableData);
-        }
-      });
+        });
+      };
     }
-  })
-  .catch(error => {
-    alert(`Error: "${error}"`);
-  })
+    )
+    .catch(error => {
+      alert(`Error: "${error}"`);
+    })
+    }
+  );
+  return detailInformation;
 }
 
 document.addEventListener('click',(event) => {
